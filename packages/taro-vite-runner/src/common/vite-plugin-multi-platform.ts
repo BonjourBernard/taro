@@ -5,6 +5,7 @@ import { REG_NODE_MODULES, SCRIPT_EXT } from '@tarojs/helper'
 import { isVirtualModule } from '../utils'
 
 import type { ViteH5CompilerContext, ViteHarmonyCompilerContext, ViteMiniCompilerContext } from '@tarojs/taro/types/compile/viteCompilerContext'
+import type { ResolvedId } from 'rollup'
 import type { PluginOption } from 'vite'
 
 function isViteDepsPath(filePath: string) {
@@ -18,8 +19,8 @@ function isViteDepsPath(filePath: string) {
   return isViteDeps
 }
 
-export default function (complier: ViteH5CompilerContext | ViteHarmonyCompilerContext | ViteMiniCompilerContext): PluginOption {
-  const { taroConfig } = complier
+export default function (compiler: ViteH5CompilerContext | ViteHarmonyCompilerContext | ViteMiniCompilerContext): PluginOption {
+  const { taroConfig } = compiler
 
   return {
     name: 'taro:vite-multi-platform-plugin',
@@ -48,21 +49,23 @@ export default function (complier: ViteH5CompilerContext | ViteHarmonyCompilerCo
       const rawResolvedPath = path.resolve(path.dirname(importer), `${path.join(dir, basename)}${ext}`)
       if (isViteDepsPath(rawResolvedPath)) return null
 
-      let resolution = await this.resolve(
-        path.resolve(path.dirname(importer), `${path.join(dir, basename)}.${process.env.TARO_ENV}${ext}`),
-        importer,
-        {
-          ...options,
-          skipSelf: true
-        })
-      if (!resolution) {
+      let resolution: ResolvedId | null = null
+      const multiExtList = [
+        `.${process.env.TARO_ENV}${ext}`,
+        `/index.${process.env.TARO_ENV}${ext}`,
+        `.${process.env.TARO_PLATFORM}${ext}`,
+        `/index.${process.env.TARO_PLATFORM}${ext}`,
+      ]
+
+      for (const multiExt of multiExtList) {
         resolution = await this.resolve(
-          path.resolve(path.dirname(importer), `${path.join(dir, basename)}.${process.env.TARO_PLATFORM}${ext}`),
+          path.resolve(path.dirname(importer), `${path.join(dir, basename)}${multiExt}`),
           importer,
           {
             ...options,
             skipSelf: true
           })
+        if (resolution) break
       }
 
       if (!resolution) {
